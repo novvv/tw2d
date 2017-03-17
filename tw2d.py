@@ -3,7 +3,11 @@
 import json, base64, urllib2, json
 import re,sys,time
 from bs4 import BeautifulSoup
-
+import email
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import mimetypes
+from mimetypes import MimeTypes
 
 #base='https://desk.com/api/v2/'
 
@@ -14,11 +18,11 @@ from urllib2 import Request, urlopen
 
 base64string = base64.b64encode('%s:%s' % (username, password))
 
+ALLOW_DOUBLE=False
+
 def desk(q,data=None,method='GET'):
     url=base_desk+q
     print url
-    
-
     #User=username
     #Pass=password
     base64string = base64.encodestring('%s:%s' % (User, Pass)).replace('\n', '')
@@ -49,7 +53,7 @@ def desk(q,data=None,method='GET'):
      #   pass
     except Exception as e: #urllib2.HTTPError, e:
         text=e.fp.read()
-        print text
+        #print text
         return json.JSONDecoder().decode(text)
     return None
 
@@ -68,7 +72,7 @@ def team(q,data=None):
        "Authorization": "BASIC " + base64.b64encode(api_key + ":xxx")
        }    
     request=urllib2.Request(url,headers=hdr)
-    if 1:
+    try:
         if data:
             response=urllib2.urlopen(request, json.JSONEncoder().encode(data))
             text=response.read()
@@ -82,11 +86,18 @@ def team(q,data=None):
             try:
                return json.JSONDecoder().decode(text)
             except ValueError as e:
-                return text
-    try:
-        pass   
+                return text  
     except Exception, e:
-        print 'urllib2 error:',e.fp.read()
+        if hasattr(e,'fp'):
+            text=e.fp.read()
+        else:
+            text=str(e)
+        try:
+            print 'urllib2 error:',text
+            return None #json.JSONDecoder().decode(text)
+        except ValueError as e:
+            return text
+        
     return None
 
 
@@ -109,86 +120,32 @@ def person_link(uid):
 map_stat={'solved':'resolved','active':'open','not a ticket':'pending',
           'on-hold':'pending','information received':'pending','waitng on customer':'pending','closed':'resolved','spam':'resolved'
          }
-def process_cases():
-    external_id='127196'
-    t=team('tickets/%s.json'% external_id)['ticket']
-    for k in t:  
-        if k=='threads':
-            continue
-        print '---->',k,'<----'
-        print t[k]
-    body=''
-    replies=[]
-    replies1=[]
-    notes=[]
-    if  len(t['threads'])>0:
-        for tr in t['threads']:
-            if tr['type'] != 'message':
-                #this is not email
-                sts = tr['newTicketStatus'] if tr['newTicketStatus'] else ''
-                bod = tr['body'] if tr['body'] else ''
-                note={
-                'suppress_rules':True,
-                'user': person_link(tr['createdBy']['id']),
-                'body': tr['createdBy']['firstName'] + ' mark as ' + sts +' '+bod,
-                'created_at': tr['createdAt'],
-                'updated_at': tr['updatedAt'],
-                '_links':
-                    { 'user':person_link(tr['createdBy']['id'])
-                        }
-                }
-                notes.append(note)
-                continue
-            #else:
-            #    continue
-            if not tr['to']:tr['to']='none'
-            if not tr['cc']:tr['cc']='none'
-            if not tr['bcc']:tr['bcc']='none'
-            ats=[]
-            for attr in tr['attachments']:
-                content=urllib2.urlopen(urllib2.Request(tr['downloadURL'])).read()
-                att={'file_name':tr['filename'],
-             'content_type':'application/octet-stream',
-             'content':base64.b64encode(content)
-                } 
-                ats.append(att)
-            r={
-                #'subject':tr['subject'],
-                'suppress_rules':True,
-                'direction':'in',
-                'body_html':tr['body'],
-                'body_text':cleanhtml(tr['body']),
-                'body':cleanhtml(tr['body']),
-                'email':tr['createdBy']['email'],
-                "status": map_stat[t['status']],
-                "to": tr['to'],
-                "from": tr['createdBy']['email'],
-                "cc": tr['cc'],
-                "bcc": tr['bcc'],
-                "client_type": "import",
-                "created_at": tr['createdAt'],
-                "created_by": person_link(tr['createdBy']['id']),
-                #"updated_at": tr['updatedAt'],
-                "sent_at" : None,
-                'attachments':ats,
-                '_links':
-                    { 'user':person_link(tr['createdBy']['id'])
-                    }
-            }
-            atts=tr['attachments']
-            replies.append((r,atts))
-            replies1.append(r)
-            print 'REPLY from: %s to:%s cc:%s bcc:%s' % (tr['createdBy']['email'],tr['to'],tr['cc'],tr['bcc'])
-            #print r
+def desk_attach(base,name,type,content):
+    if type.split('/')[0]!='text':
+        content=base64.b64encode(content)
+    att={'file_name':name,
+             'content_type':type,
+             'content':content
+        }
+    desk(base+'/attachments',att)
+
+
+
+def map_case(t):
     cust=get_cst(t['customer']['id'])
-    print cust
+    #print cust
+    cc=';'.join(t['CC']),
+    bcc=';'.join(t['BCC'])
+    if cc=='':cc='nobody'
+    if bcc=='':bcc='nobody'
+    
     msg=  {
             'suppress_rules':True,
             'from':t['inboxName'],
             'name':t['customer']['firstName']+' '+t['customer']['lastName'],
             'to':t['originalRecipient'],
-            'cc':';'.join(t['CC']),
-            'bcc':';'.join(t['BCC']),
+            'cc':cc,
+            'bcc':bcc,
             'direction':'in',
             'subject':t['subject'], # ???
             'body':t['subject']+'\n'+'>>> imported from teamwork <<<'
@@ -196,7 +153,7 @@ def process_cases():
     
     case={'type':'email',
           'suppress_rules':True,
-          'external_id':external_id+'+'+str(time.time()),
+          'external_id':str(t['id']) ,#+'+'+str(time.time()),
           'subject':t['subject'],
           "priority": 4,
           'received_at':t['createdAt'],
@@ -205,7 +162,7 @@ def process_cases():
           'updated_at':t['updatedAt'],
           'resolved_at':t['updatedAt'],
           "status": map_stat[ t['status'] ],
-          'assigned_user':person_link(t['assignedTo']['id']),
+          #'assigned_user':person_link(t['assignedTo']['id']),
           '_links':{
               "customer":cust['_links']['self'],
               #"assigned_user":person_link(t['assignedTo']['id']),
@@ -216,64 +173,197 @@ def process_cases():
           #"replies":replies1,
           #"notes":notes
     }
-    labels_addon=['spam','ignore']
+    if t['assignedTo']:
+        case['assigned_user']=person_link(t['assignedTo']['id'])
+    labels_addon=['teamwork']
     if t["tags"] > 0:
         case["labels"]=t["tags"]+labels_addon
     else:
        case["labels"]=labels_addon
-    print '>> FROM TICKET:'
-    print t
-    print '<< TO CREATE:'
-    print case
-    cs=desk('cases',case)
-    print 'CASE CREATED!!!!!!!!!!!!!!!'
-    print cs
-    #return
-    for nn in notes:
-        repl=desk('cases/%s/notes' % cs['id'],nn)
-    #return
-    for rr in replies[0:1]:
-        repl=desk('cases/%s/replies' % cs['id'],rr[0])
-        print 'added',repl
-        repl['id']=int(repl['_links']['self']['href'].split('/')[6])
-        att={'file_name':'message%s.html'%repl['id'],
-             'content_type':'text/html',
-             'content': base64.b64encode(rr[0]['body_html'])
-            }
-        print '...add content %s %s' % ( cs['id'],repl['id'] )
-        a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],repl['id'] ),att)
-        #a=desk('cases/%s/attachments' %  cs['id'] ,att)
-        print 'content ok ' +str(a)
-        for at_file in rr[1]  :
-            print '\n ... download %s' % at_file['downloadURL']
-            content=urllib2.urlopen(urllib2.Request(at_file['downloadURL'])).read()
-            att={'file_name':at_file['filename'],
-             'content_type':'application/octet-stream',
-             'content':base64.b64encode(content)
+    #print '>> FROM TICKET:'
+    #print t
+    #print '<< TO CREATE:'
+    #print case
+    return case
+
+def map_attachment(attr,download=True):
+        #try:
+            print attr
+            if download: 
+                content=urllib2.urlopen(urllib2.Request(attr['downloadURL'])).read()
+                att={
+                'file_name':attr['filename'],
+                'content_type':mimetypes.guess_type(attr['filename']),
+                'content':base64.b64encode(content)
                 }
-            a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],repl['id'] ),att)
-            print a
-        print repl
+            else:
+                att={'downloadURL':attr['downloadURL']
+                    }
+            att['original']=attr
+            return att
+            
+        #except:
+        #    print 'Bad attachment !\n',attr
+        #    return {'file_name':None,'content_type':None,'content':''}
+
+
+def map_reply(tr,download=True):
+    if not tr['to']:tr['to']='nobody'
+    if not tr['cc']:tr['cc']='nobody'
+    if not tr['bcc']:tr['bcc']='nobody'
+    createdBy=person_link(tr['createdBy']['id'])
+    if not createdBy:
+        createdBy=tr['createdBy']['email']
+    r={
+                #'subject':tr['subject'],
+                'suppress_rules':True,
+                'status':'draft',
+                'direction':'in',
+                #'body_html':tr['body'],
+                #'body_text':cleanhtml(tr['body']),
+                'body':cleanhtml(tr['body']),
+                'email':tr['createdBy']['email'],
+                "to": tr['to'],
+                "from": tr['createdBy']['email'],
+                "cc": tr['cc'],
+                "bcc": tr['bcc'],
+                "client_type": "import",
+                "created_at": tr['createdAt'],
+                "created_by": createdBy,
+                #"updated_at": tr['updatedAt'],
+                "sent_at" : None,
+                'ext_attachments':[],
+                
+                '_links':
+                    { 'user':person_link(tr['createdBy']['id'])
+                    }
+            }
+    #
+    #for att in tr['attachments']:
+    #    a=map_attachment(att)
+        #r['ext_attachments'].append(a)
+        
+    return r
+
+def map_note(tr):
+    sts = tr['newTicketStatus'] if tr['newTicketStatus'] else ''
+    bod = tr['body'] if tr['body'] else ''
+    bod = cleanhtml(bod)
+    createdBy=person_link(tr['createdBy']['id'])
+    if not createdBy:
+        createdBy=tr['createdBy']['email']
+
+    note={
+                'suppress_rules':True,
+                'user': createdBy,
+                'body': tr['createdBy']['firstName'] + ' mark as ' + sts +' '+bod,
+                'created_at': tr['createdAt'],
+                'updated_at': tr['updatedAt'],
+                '_links':{ 'user':person_link(tr['createdBy']['id'])}
+                }
+    return note
+
+def map_email(tr):    
+            #try to read orig
+            text=''
+            html=''
+            orig=team('threads/%s/original.eml' % tr['id'] )
+            print '!!!',str(orig)[0:16]
+            if orig:
+                msg=email.message_from_string(orig)
+                payloads=msg.get_payload()
+                
+                for p in payloads: 
+                    if p['Content-type']=='text/plain':
+                        text=str(p)
+                    if p['Content-type']=='text/html':
+                        html=str(p)
+            if html=='':
+                html=tr['body']
+            if text=='':
+                text=cleanhtml(tr['body'])
+            
+
+
+def process_one_case(t):
+    #external_id='127196'
+    #t=team('tickets/%s.json'% external_id)['ticket']
+    external_id=t['id']
+    case=map_case(t)
+    cs=desk('cases',case)
+    if 'message' in cs and cs['message']=='Validation Failed':
+        if not ALLOW_DOUBLE:
+            raise Exception('Validation Failed on create case!')
+        if 'external_id' in cs['errors']:
+            case['external_id']=case['external_id']+'+'+str(time.time())
+            #cs=desk('cases/search?external_id=%s' % external_id)
+            cs=desk('cases',case)
+            print 'created twice!'
+        else:
+            raise Exception('Something wrong on create case!')
+    print cs
+    #raise
+    print 'CASE %d CREATED!!!' % cs['id']
     
-def tw2d_customer(c):
+    if  len(t['threads'])>0:
+        for tr in t['threads']:
+            if tr['type'] != 'message':
+                #this is not email
+                note=map_note(tr)
+                print 'CREATE note %s' % tr['id']
+                repl=desk('cases/%s/notes' % cs['id'],note)
+                continue
+            r=map_reply(tr)
+            print 'REPLY from: %s to:%s cc:%s bcc:%s' % (tr['createdBy']['email'],tr['to'],tr['cc'],tr['bcc'])
+            #repl=desk('cases/%s/replies' % cs['id'],r)
+            repl=desk('cases/%s/replies/draft' % cs['id'],r)
+            replid=int( repl['_links']['self']['href'].split('/')[6] )
+            print '...created ok...'
+            try:
+                orig=team('threads/%s/original.eml' % tr['id'] )
+                att={'file_name':'original.eml','content_type':'message/rfc822','content':base64.b64encode(orig)}
+                a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
+                print 'original %s' % a['file_name']
+            except:
+                print 'no original eml...'
+            for arr in tr['attachments']:
+                att=map_attachment(arr)
+                print 'CREATE attachment'
+                a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
+                print 'attachment created %s' % a['file_name']
+            print 'RESET DRAFT...'
+            desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
+                 {'body_html':base64.b64encode(tr['body']),
+                  'body_text':cleanhtml(tr['body']) } ,'PATCH')
+            desk('cases/%s/replies/%s' % ( cs['id'],replid ),{'reset':1,'status':'received'},'PATCH')
+        print 'ALL REPLIES IMPORTED'
+    print 'CLOSE CASE %d' % cs['id']
+    csr=desk('cases/%s' % cs['id'] ,{'status':'resolved'},'PATCH')
+    return csr
+    
+def map_customer(c):
     external_id=c['id']
-    return {
+    if c['email']=='':
+        c['email']='@nobody'
+    ret= {
   "first_name": c['firstName'],
   "last_name": c['lastName'],
    "external_id":external_id,
-  "emails": [
-    {
-      "type": "work",
-      "value": c['email']
-    }
-  ],
+   #'phone_numbers':[{'type':'work','value':c['phone']},{'type':'mobile','value':c['mobile']} ],
+   'title':c['jobTitle'],
+   'addresses':[{'type':'work','value':c['address']}],
+  'emails': [{ 'type': "work","value": c['email']}],
   "created_at":c["createdAt"],
   "updated_at":c["updatedAt"]
 }
+    if c['phone']: 
+        ret['phone_numbers']=[{'type':'work','value':c['phone']}]
+    return ret    
+
 def process_customer(c):
     cs=team('customers.json')
     c=cs['customers'][0]
-    cust=tw2d_customer(c)
+    cust=map_customer(c)
     #print cust
     #search=desk('customers/search?email=%s ' % c['email'] )
     print search
@@ -289,7 +379,7 @@ def get_cust(e):
         email_cache[e]=search['_embedded']['entries'][0]
         return email_cache[e]
     tc=team('customers/email.json',{'email':e})
-    dc=tw2d_customer(tc)
+    dc=map_customer(tc)
     dcust=desk('customers',dc)
     email_cache[e]=dcust
     print dcust
@@ -302,13 +392,17 @@ def get_cst(cid):
     search=desk('customers/search?external_id=%s ' % cid )
     if search['total_entries'] >0:
         cust_cache[cid]=search['_embedded']['entries'][0]
-        return email_cache[e]
+        return cust_cache[cid]
     tc=team('customers/%s.json' % cid)['customer']
     print tc
-    dc=tw2d_customer(tc)
+    dc=map_customer(tc)
     dcust=desk('customers',dc)
     if 'message' in dcust and dcust['message']=='Validation Failed':
-        dcust=desk('customers/search?email=%s' % tc['email'] )['_embedded'][u'entries'][0]
+        dcusts=desk('customers/search?email=%s' % tc['email'] )['_embedded'][u'entries']
+        if len(dcusts):
+            dcust=dcusts[0]
+        else: 
+            return None 
     cust_cache[cid]=dcust
     print dcust
     return cust_cache[cid]
@@ -321,13 +415,59 @@ def get_labels():
         labels[l['name']]=l
     print labels
 
+
+_tid=127196
+_cid=204
+_rid=1657556274
+def test_attach():
+    t=team('tickets/%d.json' % _tid)['ticket']
+    att=map_attachment(t['threads'][8]['attachments'][0])
+    repl=desk('cases/%d/replies/%d/attachments' % (_cid,_rid),att)
+    return repl
+
+def log(msg):
+    log=open('tw2d.log','ab')
+    print msg
+    log.write(msg)
+    log.close()
+    
+def run():
+    page=1
+    log('start')
+    while 1:
+        search=team('tickets/search.json',{'search':'','page':page,'sortBy':'updatedAt','sortDir':'asc'})
+        for ticket in search['tickets']: 
+            
+            try:
+                t=team('tickets/%s.json'% ticket['id'])['ticket']
+                cs=process_one_case(t)
+                log('+%d>%d\n' % (ticket['id'],cs['id']) )
+                pass
+            except Exception as e:
+                log('-%d>%s\n' % (ticket['id'],str(e).replace('\n','').replace('\r','') ) )
+            choice = raw_input("> ")
+            if choice in ['q','Q', '0']:
+                print 'bye'
+                sys.exit(0)
+        page += 1
+        log('*-----------------------------------------------------------------------------page')
+        if page==s['maxPages']:
+                log('Thats all folks!\n')
+        
+                
+
     
 if __name__=='__main__':
     print 'Teamwork to Desk import tool'
     #art=desk('articles/search?text=Spam')
     if sys.argv[1]=='del':
         desk('cases/%s' % sys.argv[2],{},'DELETE')
-    if sys.argv[1]=='go':
-        process_cases()
+    if sys.argv[1]=='add':
+        t=team('tickets/%s.json'% sys.argv[2])['ticket']
+        ALLOW_DOUBLE=True
+        process_one_case(t)
+    if sys.argv[1]=='run':
+            run()
+        
     #get_labels()
     
