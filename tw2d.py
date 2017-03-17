@@ -334,11 +334,13 @@ def process_one_case(t):
             print 'RESET DRAFT...'
             desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
                  {'body_html':base64.b64encode(tr['body']),
-                  'body_text':cleanhtml(tr['body']) } ,'PATCH')
-            desk('cases/%s/replies/%s' % ( cs['id'],replid ),{'reset':1,'status':'received'},'PATCH')
+                  'body_text':cleanhtml(tr['body']),
+                  
+                  } ,'PATCH')
+            desk('cases/%s/replies/%s' % ( cs['id'],replid ),{'reset':1,'status':'received','updated_at':tr['updatedAt']},'PATCH')
         print 'ALL REPLIES IMPORTED'
     print 'CLOSE CASE %d' % cs['id']
-    csr=desk('cases/%s' % cs['id'] ,{'status':'resolved'},'PATCH')
+    csr=desk('cases/%s' % cs['id'] ,{'status':'resolved','updated_at':t['updatedAt']},'PATCH')
     return csr
     
 def map_customer(c):
@@ -445,7 +447,7 @@ def run():
                 pass
             except Exception as e:
                 log('-%d>%s\n' % (ticket['id'],str(e).replace('\n','').replace('\r','') ) )
-            choice = raw_input("> ")
+            choice = '1' #raw_input("> ")
             if choice in ['q','Q', '0']:
                 print 'bye'
                 sys.exit(0)
