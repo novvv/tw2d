@@ -199,8 +199,8 @@ def map_case(t):
     if t['assignedTo']:
         case['assigned_user']=person_link(t['assignedTo']['id'])
     labels_addon=['teamwork']
-    if t["tags"] > 0:
-        case["labels"]=t["tags"]+labels_addon
+    if len( t["tags"] ) >  0:
+        case["labels"] =  [x['name'] for x in t['tags']]+labels_addon
     else:
        case["labels"]=labels_addon
     #print '>> FROM TICKET:'
@@ -501,7 +501,7 @@ if __name__=='__main__':
     if sys.argv[1]=='add':
         ticket=team('tickets/%s.json'% sys.argv[2])['ticket']
         ALLOW_DOUBLE=True
-        cs=process_one_case(t)
+        cs=process_one_case(ticket)
         log('+%d>%d  was added manually \n' % (ticket['id'],cs['id']) )
     if sys.argv[1]=='run':
         if len(sys.argv)>2 and sys.argv[2]=='a':
