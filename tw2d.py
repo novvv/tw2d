@@ -214,9 +214,11 @@ def map_attachment(attr,download=True):
             print attr
             if download: 
                 content=urllib2.urlopen(urllib2.Request(attr['downloadURL'])).read()
+                fn=attr['filename']
+                file_name=''.join(fn.split('.')[0:-1])+'.'+fn.split('.')[-1]
                 att={
-                'file_name':attr['filename'],
-                'content_type':mimetypes.guess_type(attr['filename']),
+                'file_name':file_name,
+                'content_type':mimetypes.guess_type(file_name),
                 'content':base64.b64encode(content)
                 }
             else:
@@ -357,7 +359,10 @@ def process_one_case(t):
                 att=map_attachment(arr)
                 print 'CREATE attachment'
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
-                print 'attachment created %s' % a['file_name']
+                if 'file_name' in a:
+                    print 'attachment created %s' % a['file_name']
+                else:
+                    print 'attachment created ??', a
             print 'RESET DRAFT...'
             desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
                  {'body_html':base64.b64encode(tr['body']),
