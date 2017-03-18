@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2.7
 # -*- coding: UTF-8 -*-
 
 import sys
@@ -21,7 +21,9 @@ from settings import *
 from urllib2 import Request, urlopen
 #urlopen(Request(url, headers={'Authorization': b'Basic ' + base64.b64encode(credentials)})).close()
 
-base64string = base64.b64encode('%s:%s' % (username, password))
+auth_u= base64.b64encode('%s:%s' % (username, password))
+auth_a = base64.encodestring('%s:%s' % (User, Pass)).replace('\n', '')
+auth=auth_u
 
 ALLOW_DOUBLE=False
 
@@ -30,7 +32,7 @@ def desk(q,data=None,method='GET'):
     print url
     #User=username
     #Pass=password
-    base64string = base64.encodestring('%s:%s' % (User, Pass)).replace('\n', '')
+    
     hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
        #'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
        'Accept':'application/json',
@@ -39,7 +41,7 @@ def desk(q,data=None,method='GET'):
        'Accept-Language': 'en-US,en;q=0.8',
        'Connection': 'keep-alive',
        'Content-Type': 'application/json',
-       "Authorization": "Basic %s" % base64string
+       "Authorization": "Basic %s" % auth
        }    
     request=urllib2.Request(url,headers=hdr)
     if data and method=='GET':
@@ -57,9 +59,16 @@ def desk(q,data=None,method='GET'):
     #try:
      #   pass
     except Exception as e: #urllib2.HTTPError, e:
-        text=e.fp.read()
+        if hasattr(e,'fp'):
+            text=e.fp.read()
+        else:
+            text=str(e)
         #print text
-        return json.JSONDecoder().decode(text)
+        try:
+               return json.JSONDecoder().decode(text)
+        except ValueError as e:
+            return text
+        #return json.JSONDecoder().decode(text)
     return None
 
 def team(q,data=None):
@@ -303,7 +312,7 @@ def process_one_case(t):
             case['external_id']=case['external_id']+'+'+str(time.time())
             #cs=desk('cases/search?external_id=%s' % external_id)
             cs=desk('cases',case)
-            print 'created twice!'
+            log( '*%s->%dcreated again!' % (t['id'], cs['id']) )
         else:
             raise Exception('Something wrong on create case!')
     print cs
@@ -331,10 +340,10 @@ def process_one_case(t):
                 print 'original %s' % a['file_name']
             except:
                 print 'no original eml...try html body...'
-                orig=tr['body']
-                att={'file_name':'original%d.html' % replid,'content_type':'text/html','content':orig}
-                a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
-                print 'original %s' % a['file_name']
+                #orig=tr['body']
+                #att={'file_name':'original%d.html' % replid,'content_type':'text/html','content':orig}
+                #a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
+                #print 'original %s' % a['file_name']
             for arr in tr['attachments']:
                 att=map_attachment(arr)
                 print 'CREATE attachment'
@@ -442,26 +451,26 @@ def log(msg):
     log.write(msg)
     log.close()
     
-def run():
-    page=1
+def run(page=1, n=0):
+    #page=1
     log('start')
     while 1:
         search=team('tickets/search.json',{'search':'','page':page,'sortBy':'updatedAt','sortDir':'asc'})
-        for ticket in search['tickets']: 
-            
+        for ticket in search['tickets'][n:]: 
             try:
                 t=team('tickets/%s.json'% ticket['id'])['ticket']
                 cs=process_one_case(t)
-                log('+%d>%d\n' % (ticket['id'],cs['id']) )
+                log('+%d>%d page %d n %d\n' % (ticket['id'],cs['id'], page, n) )
                 pass
             except Exception as e:
-                log('-%d>%s\n' % (ticket['id'],str(e).replace('\n','').replace('\r','') ) )
+                log('-%d>%s page %d n %d\n' % (ticket['id'],str(e).replace('\n','').replace('\r','') , page, n) )
             choice = '1' #raw_input("> ")
+            n +=1
             if choice in ['q','Q', '0']:
                 print 'bye'
                 sys.exit(0)
         page += 1
-        log('*-----------------------------------------------------------------------------page')
+        log('*------------page %d end'% page)
         if page==s['maxPages']:
                 log('Thats all folks!\n')
 
@@ -470,12 +479,27 @@ if __name__=='__main__':
     print 'Teamwork to Desk import tool'
     #art=desk('articles/search?text=Spam')
     if sys.argv[1]=='del':
+        auth=auth_a
         desk('cases/%s' % sys.argv[2],{},'DELETE')
+    if sys.argv[1]=='clear':
+        auth=auth_a
+        s=desk('cases/search?labels=teamwork')
+        for c in s['_embedded']['entries']:
+            print c['id'],c['subject']
+            desk('cases/%s' % c['id'],{},'DELETE')
+        pass
     if sys.argv[1]=='add':
         t=team('tickets/%s.json'% sys.argv[2])['ticket']
         ALLOW_DOUBLE=True
         process_one_case(t)
     if sys.argv[1]=='run':
-            run()        
+        if len(sys.argv)>2 and sys.argv[2]=='a':
+            ALLOW_DOUBLE=True
+        page=1
+        n=0
+        if len(sys.argv)>4:
+            page=int(sys.argv[3])
+            n=int(sys.argv[3])
+        run()     
     #get_labels()
     
