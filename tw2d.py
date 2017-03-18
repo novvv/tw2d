@@ -312,7 +312,7 @@ def process_one_case(t):
             case['external_id']=case['external_id']+'+'+str(time.time())
             #cs=desk('cases/search?external_id=%s' % external_id)
             cs=desk('cases',case)
-            log( '*%s->%dcreated again!' % (t['id'], cs['id']) )
+            log( '*%s->%dcreated again!\n' % (t['id'], cs['id']) )
         else:
             raise Exception('Something wrong on create case!')
     print cs
