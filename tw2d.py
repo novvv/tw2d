@@ -121,6 +121,15 @@ def cleanhtml(raw_html):
   cleantext = re.sub(cleanr, '', raw_html)
   return cleantext
 
+tw2deskusers ={
+    129474: (26501732,'Enida'),  # Enida 
+    100123: (26493754,'@ Admin'),# @ Admin 
+    100125: (26493754,'Alma'), #Alma
+    102283: (26493754,'@ Admin'), #????
+    102282: (26493754,'@ Admin'),  #????
+    102284: (26493754,'@ Admin')
+    }
+
 
 def person_link(uid):
     if uid in tw2deskusers.keys():
@@ -162,7 +171,7 @@ def map_case(t):
             'bcc':bcc,
             'direction':'in',
             'subject':t['subject'], # ???
-            'body':t['subject']+'\n'+'>>> imported from teamwork <<<'
+            'body':t['subject']+'\n'+'>>> imported from teamwork ticket #% d <<<' % t['id']
            }
     
     case={'type':'email',
@@ -270,7 +279,7 @@ def map_note(tr):
     note={
                 'suppress_rules':True,
                 'user': createdBy,
-                'body': tr['createdBy']['firstName'] + ' mark as ' + sts +' '+bod,
+                'body': tr['createdBy']['firstName']+' as '+tr['createdBy']['email'] + ' mark as ' + sts +' '+bod,
                 'created_at': tr['createdAt'],
                 'updated_at': tr['updatedAt'],
                 '_links':{ 'user':person_link(tr['createdBy']['id'])}
@@ -453,7 +462,7 @@ def log(msg):
     
 def run(page=1, n=0):
     #page=1
-    log('Start on position %d----%d-------------------------------\n' %(page, n))
+    log('!Start on position %d----%d-------------------------------\n' %(page, n))
     while 1:
         search=team('tickets/search.json',{'search':'','page':page,'sortBy':'updatedAt','sortDir':'asc'})
         for ticket in search['tickets'][n:]: 
@@ -469,10 +478,11 @@ def run(page=1, n=0):
             if choice in ['q','Q', '0']:
                 print 'bye'
                 sys.exit(0)
+        log('!------------page %d end'% page)
         page += 1
-        log('*------------page %d end'% page)
-        if page==s['maxPages']:
+        if page==search['maxPages']:
                 log('Thats all folks!\n')
+                break
 
 
 if __name__=='__main__':
@@ -489,9 +499,10 @@ if __name__=='__main__':
             desk('cases/%s' % c['id'],{},'DELETE')
         pass
     if sys.argv[1]=='add':
-        t=team('tickets/%s.json'% sys.argv[2])['ticket']
+        ticket=team('tickets/%s.json'% sys.argv[2])['ticket']
         ALLOW_DOUBLE=True
-        process_one_case(t)
+        cs=process_one_case(t)
+        log('+%d>%d  was added manually \n' % (ticket['id'],cs['id']) )
     if sys.argv[1]=='run':
         if len(sys.argv)>2 and sys.argv[2]=='a':
             ALLOW_DOUBLE=True
