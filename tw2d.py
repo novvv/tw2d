@@ -500,6 +500,6 @@ if __name__=='__main__':
         if len(sys.argv)>4:
             page=int(sys.argv[3])
             n=int(sys.argv[3])
-        run()     
+        run(page, n)     
     #get_labels()
     
