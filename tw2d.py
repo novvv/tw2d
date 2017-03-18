@@ -13,6 +13,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import mimetypes
 from mimetypes import MimeTypes
+from datetime import datetime
 
 #base='https://desk.com/api/v2/'
 
@@ -32,7 +33,7 @@ def desk(q,data=None,method='GET'):
     print url
     #User=username
     #Pass=password
-    
+
     hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
        #'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
        'Accept':'application/json',
@@ -111,7 +112,7 @@ def team(q,data=None):
             return None #json.JSONDecoder().decode(text)
         except ValueError as e:
             return text
-        
+
     return None
 
 
@@ -161,7 +162,7 @@ def map_case(t):
     bcc=';'.join(t['BCC'])
     if cc=='':cc='nobody'
     if bcc=='':bcc='nobody'
-    
+
     msg=  {
             'suppress_rules':True,
             'from':t['inboxName'],
@@ -173,7 +174,7 @@ def map_case(t):
             'subject':t['subject'], # ???
             'body':t['subject']+'\n'+'>>> imported from teamwork ticket #% d <<<' % t['id']
            }
-    
+
     case={'type':'email',
           'suppress_rules':True,
           'external_id':str(t['id']) ,#+'+'+str(time.time()),
@@ -226,7 +227,7 @@ def map_attachment(attr,download=True):
                     }
             att['original']=attr
             return att
-            
+
         #except:
         #    print 'Bad attachment !\n',attr
         #    return {'file_name':None,'content_type':None,'content':''}
@@ -258,7 +259,7 @@ def map_reply(tr,download=True):
                 #"updated_at": tr['updatedAt'],
                 "sent_at" : None,
                 'ext_attachments':[],
-                
+
                 '_links':
                     { 'user':person_link(tr['createdBy']['id'])
                     }
@@ -267,7 +268,7 @@ def map_reply(tr,download=True):
     #for att in tr['attachments']:
     #    a=map_attachment(att)
         #r['ext_attachments'].append(a)
-        
+
     return r
 
 def map_note(tr):
@@ -297,7 +298,7 @@ def map_email(tr):
             if orig:
                 msg=email.message_from_string(orig)
                 payloads=msg.get_payload()
-                
+
                 for p in payloads: 
                     if p['Content-type']=='text/plain':
                         text=str(p)
@@ -307,7 +308,7 @@ def map_email(tr):
                 html=tr['body']
             if text=='':
                 text=cleanhtml(tr['body'])
-            
+
 
 
 def process_one_case(t):
@@ -329,7 +330,7 @@ def process_one_case(t):
     print cs
     #raise
     print 'CASE %d CREATED!!!' % cs['id']
-    
+
     if  len(t['threads'])>0:
         for tr in t['threads']:
             if tr['type'] != 'message':
@@ -367,14 +368,14 @@ def process_one_case(t):
             desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
                  {'body_html':base64.b64encode(tr['body']),
                   'body_text':cleanhtml(tr['body']),
-                  
+
                   } ,'PATCH')
             desk('cases/%s/replies/%s' % ( cs['id'],replid ),{'reset':1,'status':'received','updated_at':tr['updatedAt']},'PATCH')
         print 'ALL REPLIES IMPORTED'
     print 'CLOSE CASE %d' % cs['id']
     csr=desk('cases/%s' % cs['id'] ,{'status':'resolved','updated_at':t['updatedAt']},'PATCH')
     return csr
-    
+
 def map_customer(c):
     external_id=c['id']
     if c['email']=='':
@@ -464,10 +465,10 @@ def log(msg):
     print msg
     log.write(msg)
     log.close()
-    
+
 def run(page=1, n=0):
     #page=1
-    log('!Start on position %d----%d-------------------------------\n' %(page, n))
+    log('!Start on position %d----%d-----------%s--------------------\n' %(page, n, str(datetime.now() )))
     while 1:
         search=team('tickets/search.json',{'search':'','page':page,'sortBy':'updatedAt','sortDir':'asc'})
         for ticket in search['tickets'][n:]: 
@@ -483,7 +484,7 @@ def run(page=1, n=0):
             if choice in ['q','Q', '0']:
                 print 'bye'
                 sys.exit(0)
-        log('!------------page %d end'% page)
+        log('!------------page %d end --------------%s--------------------'% (page, datetime.now()) )
         page += 1
         n = 0
         if page==search['maxPages']:
@@ -520,4 +521,4 @@ if __name__=='__main__':
         #print sys.argv
         run(page, n)     
     #get_labels()
-    
+
