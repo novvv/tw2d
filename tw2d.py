@@ -1,5 +1,10 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+
+import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
+
 import json, base64, urllib2, json
 import re,sys,time
 from bs4 import BeautifulSoup
@@ -327,7 +332,7 @@ def process_one_case(t):
             except:
                 print 'no original eml...try html body...'
                 orig=tr['body']
-                att={'file_name':'original%d.html' % replid,'content_type':'text/html','content':base64.b64encode(orig)}
+                att={'file_name':'original%d.html' % replid,'content_type':'text/html','content':orig}
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 print 'original %s' % a['file_name']
             for arr in tr['attachments']:
