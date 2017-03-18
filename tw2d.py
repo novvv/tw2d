@@ -487,7 +487,7 @@ def run(page=1, n=0):
         log('!------------page %d end --------------%s--------------------'% (page, datetime.now()) )
         page += 1
         n = 0
-        if page>search['maxPages']:
+        if page+1>search['maxPages']:
                 log('Thats all folks!\n')
                 break
 
