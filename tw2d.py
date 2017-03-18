@@ -484,7 +484,7 @@ def run(page=1, n=0):
             if choice in ['q','Q', '0']:
                 print 'bye'
                 sys.exit(0)
-        log('!------------page %d end --------------%s--------------------'% (page, datetime.now()) )
+        log('!------------page %d end --------------%s--------------------\n'% (page, datetime.now()) )
         page += 1
         n = 0
         if page+1>search['maxPages']:
