@@ -485,6 +485,7 @@ def run(page=1, n=0):
                 sys.exit(0)
         log('!------------page %d end'% page)
         page += 1
+        n = 0
         if page==search['maxPages']:
                 log('Thats all folks!\n')
                 break
