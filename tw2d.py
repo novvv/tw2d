@@ -468,7 +468,7 @@ def log(msg):
 
 def run(page=1, n=0):
     #page=1
-    log('!Start on position %d----%d-----------%s--------------------\n' %(page, n, str(datetime.now() )))
+    log('\n!Start on position %d----%d-----------%s--------------------\n' %(page, n, str(datetime.now() )))
     while 1:
         search=team('tickets/search.json',{'search':'','page':page,'sortBy':'updatedAt','sortDir':'asc'})
         for ticket in search['tickets'][n:]: 
