@@ -321,11 +321,15 @@ def process_one_case(t):
             print '...created ok...'
             try:
                 orig=team('threads/%s/original.eml' % tr['id'] )
-                att={'file_name':'original.eml','content_type':'message/rfc822','content':base64.b64encode(orig)}
+                att={'file_name':'original%d.eml' % replid ,'content_type':'message/rfc822','content':base64.b64encode(orig)}
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 print 'original %s' % a['file_name']
             except:
-                print 'no original eml...'
+                print 'no original eml...try html body...'
+                orig=tr['body']
+                att={'file_name':'original%d.html' % replid,'content_type':'text/html','content':base64.b64encode(orig)}
+                a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
+                print 'original %s' % a['file_name']
             for arr in tr['attachments']:
                 att=map_attachment(arr)
                 print 'CREATE attachment'
@@ -455,10 +459,8 @@ def run():
         log('*-----------------------------------------------------------------------------page')
         if page==s['maxPages']:
                 log('Thats all folks!\n')
-        
-                
 
-    
+
 if __name__=='__main__':
     print 'Teamwork to Desk import tool'
     #art=desk('articles/search?text=Spam')
@@ -469,7 +471,6 @@ if __name__=='__main__':
         ALLOW_DOUBLE=True
         process_one_case(t)
     if sys.argv[1]=='run':
-            run()
-        
+            run()        
     #get_labels()
     
