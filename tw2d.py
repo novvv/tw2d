@@ -145,6 +145,10 @@ def person_link(uid):
 map_stat={'solved':'resolved','active':'open','not a ticket':'pending',
           'on-hold':'pending','information received':'pending','waitng on customer':'pending','closed':'resolved','spam':'resolved'
          }
+map_prior={None:1,'':1,
+    'Low':1,'Medium':5,'High':10
+    }
+    
 def desk_attach(base,name,type,content):
     if type.split('/')[0]!='text':
         content=base64.b64encode(content)
@@ -181,7 +185,7 @@ def map_case(t):
           'suppress_rules':True,
           'external_id':str(t['id']) ,#+'+'+str(time.time()),
           'subject':t['subject'],
-          "priority": 4,
+          "priority": map_prior[t['priority']],
           'received_at':t['createdAt'],
           'opened_at':t['createdAt'],
           'created_at':t['createdAt'],
@@ -201,7 +205,7 @@ def map_case(t):
     }
     if t['assignedTo']:
         case['assigned_user']=person_link(t['assignedTo']['id'])
-    labels_addon=['teamwork']
+    labels_addon=['tw']
     if len( t["tags"] ) >  0:
         case["labels"] =  [x['name'] for x in t['tags']]+labels_addon
     else:
@@ -254,8 +258,8 @@ def map_reply(tr,download=True):
                 'suppress_rules':True,
                 'status':'draft',
                 'direction':'in',
-                #'body_html':tr['body'],
-                #'body_text':cleanhtml(tr['body']),
+                'body_html':tr['body'],
+                'body_text':cleanhtml(tr['body']),
                 'body':body,
                 'email':tr['createdBy']['email'],
                 "to": tr['to'],
@@ -380,7 +384,8 @@ def process_one_case(t):
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 print 'original %s' % a['file_name']
             except:
-                print 'no original eml...try html body...'
+                pass
+                #print 'no original eml...try html body...'
                 #orig=tr['body']
                 #att={'file_name':'original%d.html' % replid,'content_type':'text/html','content':orig}
                 #a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
@@ -396,14 +401,13 @@ def process_one_case(t):
                     log('!?att %s %s %s\n' % ( t['id'],tr['id'],att['filename'] ) ) 
             print 'RESET DRAFT...'
             desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
-                 {'body_html':base64.b64encode(tr['body']),
-                  'body_text':cleanhtml(tr['body']),
-
+                 {'body_html': tr['body'],
+                  'body_text': cleanhtml(tr['body']),
                   } ,'PATCH')
             desk('cases/%s/replies/%s' % ( cs['id'],replid ),{'reset':1,'status':'received','updated_at':tr['updatedAt']},'PATCH')
         print 'ALL REPLIES IMPORTED'
     print 'CLOSE CASE %d' % cs['id']
-    csr=desk('cases/%s' % cs['id'] ,{'status':'resolved','updated_at':t['updatedAt']},'PATCH')
+    csr=desk('cases/%s' % cs['id'] ,{'status':'resolved','updated_at':t['updatedAt'],'resolved_at':t['updatedAt']},'PATCH')
     return csr
 
 def map_customer(c):
