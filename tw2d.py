@@ -24,7 +24,7 @@ from urllib2 import Request, urlopen
 
 auth_u= base64.b64encode('%s:%s' % (username, password))
 auth_a = base64.encodestring('%s:%s' % (User, Pass)).replace('\n', '')
-auth=auth_u
+
 
 ALLOW_DOUBLE=False
 
@@ -128,7 +128,8 @@ tw2deskusers ={
     100125: (26493754,'Alma'), #Alma
     102283: (26493754,'@ Admin'), #????
     102282: (26493754,'@ Admin'),  #????
-    102284: (26493754,'@ Admin')
+    102284: (26493754,'@ Admin'),
+    999999999:(26493754,'@ Admin')
     }
 
 
@@ -237,6 +238,9 @@ def map_reply(tr,download=True):
     if not tr['to']:tr['to']='nobody'
     if not tr['cc']:tr['cc']='nobody'
     if not tr['bcc']:tr['bcc']='nobody'
+    body=cleanhtml(tr['body'])
+    if body.replace('\n','').replace('\t','').strip() =='':
+        body='...'
     createdBy=person_link(tr['createdBy']['id'])
     if not createdBy:
         createdBy=tr['createdBy']['email']
@@ -247,7 +251,7 @@ def map_reply(tr,download=True):
                 'direction':'in',
                 #'body_html':tr['body'],
                 #'body_text':cleanhtml(tr['body']),
-                'body':cleanhtml(tr['body']),
+                'body':body,
                 'email':tr['createdBy']['email'],
                 "to": tr['to'],
                 "from": tr['createdBy']['email'],
@@ -339,10 +343,13 @@ def process_one_case(t):
                 print 'CREATE note %s' % tr['id']
                 repl=desk('cases/%s/notes' % cs['id'],note)
                 continue
+            print tr
             r=map_reply(tr)
             print 'REPLY from: %s to:%s cc:%s bcc:%s' % (tr['createdBy']['email'],tr['to'],tr['cc'],tr['bcc'])
+            print r
             #repl=desk('cases/%s/replies' % cs['id'],r)
             repl=desk('cases/%s/replies/draft' % cs['id'],r)
+            print repl
             replid=int( repl['_links']['self']['href'].split('/')[6] )
             print '...created ok...'
             try:
@@ -491,18 +498,21 @@ def run(page=1, n=0):
                 log('Thats all folks!\n')
                 break
 
+auth=auth_u
 
 if __name__=='__main__':
     print 'Teamwork to Desk import tool'
     #art=desk('articles/search?text=Spam')
+    
     if sys.argv[1]=='del':
         auth=auth_a
         desk('cases/%s' % sys.argv[2],{},'DELETE')
     if sys.argv[1]=='clear':
         auth=auth_a
-        s=desk('cases/search?labels=teamwork')
+        s=desk('cases/search?labels=teamwork&status=open')
         for c in s['_embedded']['entries']:
             print c['id'],c['subject']
+            #raw_input("> ")
             desk('cases/%s' % c['id'],{},'DELETE')
         pass
     if sys.argv[1]=='add':
@@ -510,6 +520,24 @@ if __name__=='__main__':
         ALLOW_DOUBLE=True
         cs=process_one_case(ticket)
         log('+%d>%d  was added manually \n' % (ticket['id'],cs['id']) )
+    if sys.argv[1]=='job':
+        txt = open(sys.argv[2],'rb').read()
+        log('\nJob %s started\n'% sys.argv[2])
+        cleanr = re.compile('<.*?>')
+        cleantext = re.sub
+        sr=re.compile('-.*?>')
+        for i in re.findall(sr,txt):
+            tik=str(i)[1:-1]
+            print 'Job:\n'+tik
+            
+            t=team('tickets/%s.json'% tik)
+            if t and t.has_key('ticket'):
+                ticket=t['ticket']
+                ALLOW_DOUBLE=True
+                cs=process_one_case(ticket)
+                log('+%d>%d  was added by job %s \n' % (ticket['id'],cs['id'], sys.argv[2]) )
+            else:
+                log('+%s>TICKED MOVED OR NOT EXIST\n' % tik )
     if sys.argv[1]=='run':
         if len(sys.argv)>2 and sys.argv[2]=='a':
             ALLOW_DOUBLE=True
