@@ -173,7 +173,7 @@ def map_case(t):
             'bcc':bcc,
             'direction':'in',
             'subject':t['subject'], # ???
-            'body':t['subject']+'\n'+'>>> imported from teamwork ticket #% d <<<' % t['id']
+            'body':t['subject']+'\n'+'>>> imported from teamwork ticket #%d <<<' % t['id']
            }
 
     case={'type':'email',
@@ -267,7 +267,7 @@ def map_reply(tr,download=True):
                 "created_by": createdBy,
                 #"updated_at": tr['updatedAt'],
                 "sent_at" : None,
-                'ext_attachments':[],
+                #'ext_attachments':[],
 
                 '_links':
                     { 'user':person_link(tr['createdBy']['id'])
@@ -297,6 +297,22 @@ def map_note(tr):
                 '_links':{ 'user':person_link(tr['createdBy']['id'])}
                 }
     return note
+
+def run_compare():
+    s=desk('cases/search?labels=teamwork&status=resolved')
+    maps=[(cs['id'],cs['external_id'].split('+')[0]) for cs in s['_embedded']['entries'] ]
+    for rec in maps:
+        t=team('tickets/%s.json' % rec[1])['ticket']
+        def sfn(fn):
+            return ''.join(fn.split('.')[0:-1])+'.'+fn.split('.')[-1]
+        fn=[ ([sfn(y['filename']) for y in x['attachments']]) for x in t['threads'] if x['type']=='message']
+        repl=desk('cases/%d/replies' % rec[0])['_embedded']['entries']
+        #desk( '/'.join( repl[4]['_links']['attachments']['href'].split('/')[3:] ) )
+        #fn1=[x['file_name'] for x in  [desk( '/'.join( z['_links']['attachments']['href'].split('/')[3:] ) )['_embedded']['entries'] ] for z in repl]
+        atts=[desk( '/'.join( z['_links']['attachments']['href'].split('/')[3:] ) )['_embedded']['entries']  for z in repl]
+        fn1=[[x['file_name'] for x in a if x['file_name'].split('.')[-1] !='eml'] for a in atts]
+        print fn
+        print fn1
 
 def map_email(tr):    
             #try to read orig
@@ -471,7 +487,10 @@ _rid=1657556274
 def test_attach():
     t=team('tickets/%d.json' % _tid)['ticket']
     att=map_attachment(t['threads'][8]['attachments'][0])
+    
     repl=desk('cases/%d/replies/%d/attachments' % (_cid,_rid),att)
+    atts=[desk( '/'.join( z['_links']['attachments']['href'].split('/')[3:] ) )['_embedded']['entries']  for z in repl]
+    
     return repl
 
 def log(msg):
@@ -485,9 +504,13 @@ def run(page=1, n=0):
     log('\n!Start on position %d----%d-----------%s--------------------\n' %(page, n, str(datetime.now() )))
     while 1:
         search=team('tickets/search.json',{'search':'','page':page,'sortBy':'updatedAt','sortDir':'asc'})
-        for ticket in search['tickets'][n:]: 
+        for ticket in search['tickets'][n:]:
             try:
-                t=team('tickets/%s.json'% ticket['id'])['ticket']
+                t=team('tickets/%s.json'% ticket['id'])
+                if 'ticket' not in t.keys():
+                    log('?%d>%s page %d n %d\n' % (ticket['id'],'NOT A TICKET', page, n) )
+                    continue
+                t=t['ticket']
                 cs=process_one_case(t)
                 log('+%d>%d page %d n %d\n' % (ticket['id'],cs['id'], page, n) )
                 pass
@@ -516,11 +539,14 @@ if __name__=='__main__':
         desk('cases/%s' % sys.argv[2],{},'DELETE')
     if sys.argv[1]=='clear':
         auth=auth_a
-        s=desk('cases/search?labels=teamwork&status=open')
-        for c in s['_embedded']['entries']:
-            print c['id'],c['subject']
-            #raw_input("> ")
-            desk('cases/%s' % c['id'],{},'DELETE')
+        status='resolved'
+        s=desk('cases/search?labels=teamwork&status=%s' % status)
+        while len(s['_embedded']['entries']) > 0:
+            for c in s['_embedded']['entries']:
+                print c['id'],c['subject']
+                #raw_input("> ")
+                desk('cases/%s' % c['id'],{},'DELETE')
+                s=desk('cases/search?labels=teamwork&status=%s' % status)
         pass
     if sys.argv[1]=='add':
         ticket=team('tickets/%s.json'% sys.argv[2])['ticket']
