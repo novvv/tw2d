@@ -177,6 +177,7 @@ def map_case(t):
            }
 
     case={'type':'email',
+           #'type':'chat',
           'suppress_rules':True,
           'external_id':str(t['id']) ,#+'+'+str(time.time()),
           'subject':t['subject'],
@@ -211,17 +212,21 @@ def map_case(t):
     #print case
     return case
 
-def map_attachment(attr,download=True):
+def map_attachment(attr,download=True, created_at=None):
         #try:
             print attr
             if download: 
                 content=urllib2.urlopen(urllib2.Request(attr['downloadURL'])).read()
                 fn=attr['filename']
                 file_name=''.join(fn.split('.')[0:-1])+'.'+fn.split('.')[-1]
+                ct=mimetypes.guess_type(file_name)[0]
+                
                 att={
                 'file_name':file_name,
-                'content_type':mimetypes.guess_type(file_name),
-                'content':base64.b64encode(content)
+                'content_type':ct,
+                'content':base64.b64encode(content),
+                'created_at':created_at,
+                'updated_at':created_at
                 }
             else:
                 att={'downloadURL':attr['downloadURL']
@@ -354,7 +359,8 @@ def process_one_case(t):
             print '...created ok...'
             try:
                 orig=team('threads/%s/original.eml' % tr['id'] )
-                att={'file_name':'original%d.eml' % replid ,'content_type':'message/rfc822','content':base64.b64encode(orig)}
+                att={'file_name':'original%d.eml' % replid ,'content_type':'message/rfc822','content':base64.b64encode(orig),
+                     'created_at':tr['createdAt']}
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 print 'original %s' % a['file_name']
             except:
@@ -364,13 +370,14 @@ def process_one_case(t):
                 #a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 #print 'original %s' % a['file_name']
             for arr in tr['attachments']:
-                att=map_attachment(arr)
+                att=map_attachment(arr,True,tr['createdAt'])
                 print 'CREATE attachment'
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 if 'file_name' in a:
                     print 'attachment created %s' % a['file_name']
                 else:
                     print 'attachment created ??', a
+                    log('!?att %s %s %s\n' % ( t['id'],tr['id'],att['filename'] ) ) 
             print 'RESET DRAFT...'
             desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
                  {'body_html':base64.b64encode(tr['body']),
