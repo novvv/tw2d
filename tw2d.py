@@ -117,10 +117,16 @@ def team(q,data=None):
 
 
 def cleanhtml(raw_html):
-  return BeautifulSoup(raw_html, "lxml").get_text()
-  cleanr = re.compile('<.*?>')
-  cleantext = re.sub(cleanr, '', raw_html)
-  return cleantext
+  html = BeautifulSoup(raw_html, "lxml").get_text()
+  html = html.replace('\t', '')
+  while '  ' in html:
+    html = html.replace('  ', ' ')
+  while '\n\n' in html:
+    html = html.replace('\n\n', '\n')
+  return html
+  #cleanr = re.compile('<.*?>')
+  #cleantext = re.sub(cleanr, '', raw_html)
+  #return cleantext
 
 tw2deskusers ={
     129474: (26501732,'Enida'),  # Enida 
