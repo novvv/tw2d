@@ -216,6 +216,8 @@ def map_case(t):
         case["labels"] =  [x['name'] for x in t['tags']]+labels_addon
     else:
        case["labels"]=labels_addon
+    if ALLOW_DOUBLE:
+        case['external_id']=case['external_id']+'+'+str(time.time())
     #print '>> FROM TICKET:'
     #print t
     #print '<< TO CREATE:'
