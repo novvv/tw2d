@@ -392,6 +392,7 @@ def process_one_case(t):
                 a=desk('cases/%s/replies/%s/attachments' % ( cs['id'],replid ),att)
                 print 'original %s' % a['file_name']
             except:
+                #log('!%d> no original %d>' % (t['id'],cs['id'] ) )
                 pass
                 #print 'no original eml...try html body...'
                 #orig=tr['body']
@@ -406,7 +407,7 @@ def process_one_case(t):
                     print 'attachment created %s' % a['file_name']
                 else:
                     print 'attachment created ??', a
-                    log('!?att %s %s %s\n' % ( t['id'],tr['id'],att['filename'] ) ) 
+                    log('!?att %s %s \n' % ( t['id'],tr['id'] ) ) 
             print 'RESET DRAFT...'
             desk('cases/%s/replies/%s?fields=body_html,body_text' % ( cs['id'],replid ),
                  {'body_html': tr['body'],
