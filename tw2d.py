@@ -1,6 +1,17 @@
 #!/usr/bin/env python2.7
 # -*- coding: UTF-8 -*-
 
+#from settings import *
+#global settings vars
+api_key='xxxxxxxx'
+base_team='https://acme.teamwork.com/desk/v1/'
+username='agent@acme.com'
+password='agentpass'
+User='admin@acme.com'
+Pass='admpass'
+base_desk='https://xxxx.desk.com/api/v2/'
+
+
 import sys
 reload(sys)
 sys.setdefaultencoding("utf-8")
@@ -17,7 +28,9 @@ from datetime import datetime
 
 #base='https://desk.com/api/v2/'
 
-from settings import *
+
+
+
 
 from urllib2 import Request, urlopen
 #urlopen(Request(url, headers={'Authorization': b'Basic ' + base64.b64encode(credentials)})).close()
@@ -129,9 +142,9 @@ def cleanhtml(raw_html):
   #return cleantext
 
 tw2deskusers ={
-    129474: (26501732,'Enida'),  # Enida 
+    129474: (26501732,'Enia'),  # Enida 
     100123: (26493754,'@ Admin'),# @ Admin 
-    100125: (26493754,'Alma'), #Alma
+    100125: (26493754,'Aima'), #Alma
     102283: (26493754,'@ Admin'), #????
     102282: (26493754,'@ Admin'),  #????
     102284: (26493754,'@ Admin'),
